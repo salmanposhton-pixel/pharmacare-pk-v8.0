@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pharmacy Management System</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#062319">
+
+  <!-- CDNs: Tailwind CSS, Chart.js, QRCode.js, Html5-Qrcode Camera Scanner, Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Offline JS Fallback Stubs for standalone PC execution -->
+  <script>
+    window.Chart = window.Chart || class {
+      constructor(ctx, config) { this.ctx = ctx; this.config = config; }
+      destroy() {}
+      update() {}
+    };
+
+    window.QRCode = window.QRCode || function(container, options) {
+      if (typeof options === 'string') options = { text: options };
+      if (container) {
+        const text = options.text || 'FBR-POS*OFFLINE';
+        const size = options.width || 100;
+        if (window.FbrQrCodeGenerator) {
+          container.innerHTML = window.FbrQrCodeGenerator.generateSvgMarkup(text, size);
+        } else {
+          container.innerHTML = `<div style="padding: 10px; border: 1px dashed #000; font-family: monospace; font-size: 10px; text-align: center;">[QR CODE: ${text}]</div>`;
+        }
+      }
+    };
+    if (window.QRCode) {
+      window.QRCode.CorrectLevel = window.QRCode.CorrectLevel || { H: 2, Q: 1, M: 0, L: 3 };
+    }
+
+    window.Html5Qrcode = window.Html5Qrcode || class {
+      constructor(elementId) { this.elementId = elementId; }
+      static getCameras() { return Promise.resolve([]); }
+      start() { return Promise.reject(new Error("Camera scanner requires active video device")); }
+      stop() { return Promise.resolve(); }
+      clear() {}
+    };
+
+    window.lucide = window.lucide || {
+      createIcons: function() {}
+    };
+  </script>
+
+  <!-- Google Font for Urdu & Display -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              50: '#f2faf6',
+              100: '#e1f5eb',
+              200: '#c5ebd9',
+              300: '#99d9be',
+              400: '#68be9c',
+              500: '#3fa37d',
+              600: '#2c8362',
+              700: '#1b5a43',
+              800: '#124231',
+              850: '#0e3828',
+              900: '#08281d',
+              950: '#041810',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans Arabic"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+            urdu: ['"Noto Sans Arabic"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom High-Density Scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #062319; }
+    ::-webkit-scrollbar-thumb { background: #1b5a43; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2c8362; }
+
+    /* Dynamic 6-Palette Theme System Rules */
+    /* 1. Emerald Green (Default Pharmacy Theme) */
+    body[data-theme="emerald-green"], body:not([data-theme]) {
+      background-color: #062319 !important;
+      color: #e2e8f0 !important;
+    }
+    body[data-theme="emerald-green"] aside { background-color: #041810 !important; border-color: rgba(6, 78, 59, 0.6) !important; }
+    body[data-theme="emerald-green"] header { background-color: #0E3827 !important; border-color: rgba(6, 78, 59, 0.6) !important; }
+    body[data-theme="emerald-green"] main { background-color: #062319 !important; }
+    body[data-theme="emerald-green"] footer { background-color: #041810 !important; border-color: rgba(6, 78, 59, 0.6) !important; }
+
+    /* 2. Midnight Obsidian (High-Contrast Black Theme) */
+    body[data-theme="online-black"] {
+      background-color: #090D16 !important;
+      color: #f1f5f9 !important;
+    }
+    body[data-theme="online-black"] aside {
+      background-color: #0D131F !important;
+      border-color: #1e293b !important;
+    }
+    body[data-theme="online-black"] header {
+      background-color: #111827 !important;
+      border-color: #1e293b !important;
+    }
+    body[data-theme="online-black"] main {
+      background-color: #090D16 !important;
+    }
+    body[data-theme="online-black"] footer {
+      background-color: #0B0F19 !important;
+      border-color: #1e293b !important;
+    }
+    body[data-theme="online-black"] .bg-\[\#0E3827\],
+    body[data-theme="online-black"] .bg-\[\#062319\],
+    body[data-theme="online-black"] .bg-\[\#041810\] {
+      background-color: #111827 !important;
+    }
+
+    /* 3. Sapphire Ocean (Deep Navy Blue Theme) */
+    body[data-theme="offline-blue"] {
+      background-color: #0A192F !important;
+      color: #e2e8f0 !important;
+    }
+    body[data-theme="offline-blue"] aside {
+      background-color: #0B1E3D !important;
+      border-color: #1E3A8A !important;
+    }
+    body[data-theme="offline-blue"] header {
+      background-color: #0F2850 !important;
+      border-color: #1E3A8A !important;
+    }
+    body[data-theme="offline-blue"] main {
+      background-color: #0A192F !important;
+    }
+    body[data-theme="offline-blue"] footer {
+      background-color: #071326 !important;
+      border-color: #1E3A8A !important;
+    }
+    body[data-theme="offline-blue"] .bg-\[\#0E3827\],
+    body[data-theme="offline-blue"] .bg-\[\#062319\],
+    body[data-theme="offline-blue"] .bg-\[\#041810\] {
+      background-color: #132B54 !important;
+    }
+
+    /* 4. Medical Cyan & Clinical Teal Theme */
+    body[data-theme="medical-cyan"] {
+      background-color: #061e24 !important;
+      color: #e0f2fe !important;
+    }
+    body[data-theme="medical-cyan"] aside {
+      background-color: #041419 !important;
+      border-color: #0e7490 !important;
+    }
+    body[data-theme="medical-cyan"] header {
+      background-color: #082f38 !important;
+      border-color: #0e7490 !important;
+    }
+    body[data-theme="medical-cyan"] main {
+      background-color: #061e24 !important;
+    }
+    body[data-theme="medical-cyan"] footer {
+      background-color: #041419 !important;
+      border-color: #0e7490 !important;
+    }
+    body[data-theme="medical-cyan"] .bg-\[\#0E3827\],
+    body[data-theme="medical-cyan"] .bg-\[\#062319\],
+    body[data-theme="medical-cyan"] .bg-\[\#041810\] {
+      background-color: #0a3a46 !important;
+    }
+
+    /* 5. Royal Purple Theme */
+    body[data-theme="royal-purple"] {
+      background-color: #170b28 !important;
+      color: #f3e8ff !important;
+    }
+    body[data-theme="royal-purple"] aside {
+      background-color: #10061e !important;
+      border-color: #6b21a8 !important;
+    }
+    body[data-theme="royal-purple"] header {
+      background-color: #23103c !important;
+      border-color: #6b21a8 !important;
+    }
+    body[data-theme="royal-purple"] main {
+      background-color: #170b28 !important;
+    }
+    body[data-theme="royal-purple"] footer {
+      background-color: #10061e !important;
+      border-color: #6b21a8 !important;
+    }
+    body[data-theme="royal-purple"] .bg-\[\#0E3827\],
+    body[data-theme="royal-purple"] .bg-\[\#062319\],
+    body[data-theme="royal-purple"] .bg-\[\#041810\] {
+      background-color: #2e164f !important;
+    }
+
+    /* 6. Sunset Amber & Warm Clinical Gold Theme */
+    body[data-theme="amber-gold"] {
+      background-color: #1c1305 !important;
+      color: #fef3c7 !important;
+    }
+    body[data-theme="amber-gold"] aside {
+      background-color: #140d03 !important;
+      border-color: #92400e !important;
+    }
+    body[data-theme="amber-gold"] header {
+      background-color: #2a1c07 !important;
+      border-color: #92400e !important;
+    }
+    body[data-theme="amber-gold"] main {
+      background-color: #1c1305 !important;
+    }
+    body[data-theme="amber-gold"] footer {
+      background-color: #140d03 !important;
+      border-color: #92400e !important;
+    }
+    body[data-theme="amber-gold"] .bg-\[\#0E3827\],
+    body[data-theme="amber-gold"] .bg-\[\#062319\],
+    body[data-theme="amber-gold"] .bg-\[\#041810\] {
+      background-color: #38250a !important;
+    }
+
+    /* 7. Imperial Royal 3D Gold & Amber Luxury Theme */
+    body[data-theme="royal-gold"] {
+      background-color: #0d0902 !important;
+      color: #fef3c7 !important;
+    }
+    body[data-theme="royal-gold"] aside {
+      background-color: #150f04 !important;
+      border-color: rgba(217, 119, 6, 0.45) !important;
+      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.8), inset -1px 0 0 rgba(245, 158, 11, 0.2) !important;
+    }
+    body[data-theme="royal-gold"] header {
+      background-color: #211706 !important;
+      border-color: rgba(217, 119, 6, 0.55) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.75), inset 0 -1px 0 rgba(245, 158, 11, 0.25) !important;
+    }
+    body[data-theme="royal-gold"] main {
+      background-color: #0d0902 !important;
+    }
+    body[data-theme="royal-gold"] footer {
+      background-color: #150f04 !important;
+      border-color: rgba(217, 119, 6, 0.45) !important;
+    }
+    body[data-theme="royal-gold"] .bg-\[\#0E3827\],
+    body[data-theme="royal-gold"] .bg-\[\#062319\],
+    body[data-theme="royal-gold"] .bg-\[\#041810\] {
+      background-color: #2b1e08 !important;
+      border-color: rgba(217, 119, 6, 0.35) !important;
+    }
+
+    /* Industry-Standard Print Formatting Rules for 80mm Thermal Receipt Printers & A4 Document Printing */
+    @media print {
+      /* Common Print Overrides */
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+
+      header, aside, footer, nav, #toastContainer, .no-print, button:not(.printable-btn), input:not(.printable-input), select {
+        display: none !important;
+      }
+
+      /* =========================================================================
+         1. THERMAL 80MM RECEIPT PRINTING MODE
+         ========================================================================= */
+      body.print-mode-80mm,
+      body:has(#receiptPrintModal):not(.print-mode-a4),
+      #receiptPrintModal:not(.print-mode-a4) {
+        width: 72mm !important;
+        max-width: 72mm !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Courier New', Courier, monospace, sans-serif !important;
+        font-size: 8.5px !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+      }
+
+      body:has(#receiptPrintModal):not(.print-mode-a4) > *:not(#receiptPrintModal):not(#thermalPrintFrame) {
+        display: none !important;
+      }
+
+      #receiptPrintModal, .printable-thermal-receipt {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 72mm !important;
+        max-width: 72mm !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-shadow: none !important;
+        border: none !important;
+        z-index: 99999 !important;
+      }
+
+      #receiptPrintModal .no-print, 
+      #receiptPrintModal button, 
+      #receiptPrintModal .modal-header,
+      #receiptPrintModal .backdrop-blur-md {
+        display: none !important;
+      }
+
+      #receiptContainerCard {
+        display: block !important;
+        width: 72mm !important;
+        max-width: 72mm !important;
+        margin: 0 auto !important;
+        padding: 1mm 1mm !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: none !important;
+        box-shadow: none !important;
+        font-size: 8.5px !important;
+        line-height: 1.18 !important;
+        page-break-after: avoid !important;
+      }
+
+      #receiptContainerCard * {
+        color: #000000 !important;
+        background: transparent !important;
+        border-color: #000000 !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+
+      #receiptContainerCard h1, 
+      #receiptContainerCard h2, 
+      #receiptContainerCard h3,
+      #receiptContainerCard strong {
+        font-weight: 900 !important;
+        color: #000000 !important;
+      }
+
+      #receiptContainerCard hr,
+      #receiptContainerCard .border-t,
+      #receiptContainerCard .border-b,
+      #receiptContainerCard .border-dashed {
+        border-color: #000000 !important;
+        border-style: dashed !important;
+      }
+
+      #fbrQrCodeContainer img, 
+      #fbrQrCodeContainer canvas,
+      #thermalQrCanvas img,
+      #thermalQrCanvas canvas {
+        display: block !important;
+        margin: 2mm auto !important;
+        max-width: 45mm !important;
+        height: auto !important;
+      }
+
+      /* =========================================================================
+         2. A4 DOCUMENT & REPORT PRINTING MODE (Fits Exactly on 1 Page)
+         ========================================================================= */
+      body.print-mode-a4,
+      body:not(:has(#receiptPrintModal)) {
+        width: 100% !important;
+        max-width: 210mm !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-size: 10pt !important;
+        line-height: 1.3 !important;
+      }
+
+      .a4-printable,
+      .printable-a4-document,
+      .a4-page {
+        width: 100% !important;
+        max-width: 190mm !important;
+        margin: 0 auto !important;
+        padding: 5mm !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-shadow: none !important;
+        border: none !important;
+        page-break-inside: avoid !important;
+      }
+
+      .a4-printable table,
+      .printable-a4-document table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 9.5pt !important;
+      }
+
+      .a4-printable th,
+      .a4-printable td,
+      .printable-a4-document th,
+      .printable-a4-document td {
+        padding: 4px 6px !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #000000 !important;
+      }
+
+      .a4-printable .signature-box,
+      .printable-a4-document .signature-box {
+        margin-top: 15px !important;
+        padding-top: 5px !important;
+        border-top: 1px solid #000000 !important;
+        text-align: center !important;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 8mm 10mm;
+      }
+    }
+
+    @keyframes scanLineAnim {
+      0% { top: 0%; opacity: 0.8; }
+      50% { top: 94%; opacity: 1; }
+      100% { top: 0%; opacity: 0.8; }
+    }
+    .animate-scan-line {
+      animation: scanLineAnim 2.2s ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.4), 0 0 30px rgba(16, 185, 129, 0.2);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 25px rgba(34, 211, 238, 0.8), 0 0 45px rgba(16, 185, 129, 0.4);
+        transform: scale(1.02);
+      }
+    }
+    .animate-pulse-glow {
+      animation: pulseGlow 1.6s ease-in-out infinite;
+    }
+
+    /* All Box Background Golden Color for Expiry Date */
+    .gold-expiry-box {
+      background: linear-gradient(135deg, #D4AF37 0%, #FFDF73 50%, #B8860B 100%) !important;
+      color: #000000 !important;
+      border: 2px solid #FFF275 !important;
+      box-shadow: 0 4px 14px rgba(212, 175, 55, 0.55), inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+      font-weight: 900 !important;
+    }
+
+    /* Custom CSS Keyframes & Animations for License Dashboard Tooltips */
+    @keyframes tooltipFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes tooltipFadeInTop {
+      from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .animate-tooltip-fade {
+      animation: tooltipFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-tooltip-fade-top {
+      animation: tooltipFadeInTop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Hover Tooltip Helper Class for Metric Cards */
+    .metric-tooltip-trigger {
+      position: relative;
+    }
+
+    .metric-tooltip-trigger .metric-tooltip {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: translateY(6px) scale(0.96);
+    }
+
+    .metric-tooltip-trigger:hover .metric-tooltip,
+    .metric-tooltip-trigger:focus-within .metric-tooltip {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+      animation: tooltipFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-[#062319] text-slate-200 font-sans antialiased h-screen flex flex-col select-none overflow-hidden">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-3 right-3 z-50 space-y-2 pointer-events-auto"></div>
+
+  <!-- Secure Staff Login Modal Overlay -->
+  <div id="loginOverlay" class="fixed inset-0 bg-[#062319]/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#0E3827] border border-emerald-800/60 rounded-xl p-6 shadow-2xl space-y-5 relative">
+      <!-- Header Branding -->
+      <div class="flex items-center justify-between border-b border-emerald-800/50 pb-4">
+        <div class="flex items-center gap-3">
+          <img src="/logo.jpg" onError="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><rect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23064e3b\'/><path d=\'M50 20v60M20 50h60\' stroke=\'%2334d399\' stroke-width=\'12\' stroke-linecap=\'round\'/><circle cx=\'50\' cy=\'50\' r=\'12\' fill=\'%23fbbf24\'/></svg>';" alt="PharmaCare PK Logo" class="w-10 h-10 rounded-xl object-cover border border-emerald-500/40 shadow-md shrink-0" referrerPolicy="no-referrer" />
+          <div>
+            <h2 id="sidebarPharmacyTitle" class="text-base font-extrabold text-white tracking-tight leading-none">Pharmacy Store</h2>
+            <p class="text-[10px] text-emerald-300/70 mt-1">v1.0 Pharmacy Management System</p>
+          </div>
+        </div>
+        <span class="px-2 py-0.5 text-[9px] font-mono font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded">
+          SHA-256 Auth
+        </span>
+      </div>
+
+      <!-- Welcome Banner -->
+      <div>
+        <h3 class="text-sm font-bold text-slate-200">Staff Authentication</h3>
+        <p class="text-[11px] text-slate-400 mt-0.5">Sign in with your role-based staff credentials to access the system.</p>
+      </div>
+
+      <!-- Error Message Banner -->
+      <div id="loginErrorMsg" class="hidden p-2.5 bg-rose-500/10 border border-rose-500/30 rounded text-rose-400 text-xs font-semibold flex items-center gap-2">
+        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+        <span id="loginErrorText">Invalid username or password.</span>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" onsubmit="window.app.handleLoginSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 uppercase tracking-tight mb-1">Username</label>
+          <div class="relative">
+            <input type="text" id="loginUsername" required placeholder="e.g. admin, pharmacist, cashier" 
+              class="w-full bg-[#062319] border border-emerald-700 text-white placeholder-slate-500 text-xs rounded px-3 py-2 pl-9 focus:outline-none focus:border-emerald-500 font-mono transition-colors">
+            <i data-lucide="user" class="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5"></i>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-slate-300 uppercase tracking-tight mb-1">Password (SHA-256 Hashed)</label>
+          <div class="relative">
+            <input type="password" id="loginPassword" required placeholder="••••••••" 
+              class="w-full bg-[#062319] border border-emerald-700 text-white placeholder-slate-500 text-xs rounded px-3 py-2 pl-9 pr-9 focus:outline-none focus:border-emerald-500 font-mono transition-colors">
+            <i data-lucide="lock" class="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5"></i>
+            <button type="button" onclick="window.app.togglePasswordVisibility()" class="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300">
+              <i id="passwordToggleIcon" data-lucide="eye" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="loginSubmitBtn" 
+          class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition-all shadow flex items-center justify-center gap-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          <span>Sign In to System</span>
+        </button>
+      </form>
+
+      <!-- Security Note -->
+      <div class="text-[10px] text-slate-400 text-center font-mono pt-2 border-t border-slate-800">
+        🔒 Authorized Staff Access Only • WebCrypto SHA-256 Digest • IndexedDB
+      </div>
+    </div>
+  </div>
+
+  <!-- React App Root Container for Global License Route Guard & Banner -->
+  <div id="root"></div>
+
+  <!-- Main Application Wrapper -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- SIDEBAR: Categorized and High-Density -->
+    <aside class="w-52 flex flex-col border-r border-emerald-900/50 bg-[#041810] shrink-0 z-20">
+      <!-- Logo & Header -->
+      <div class="p-3 border-b border-emerald-800/50 flex items-center gap-2.5 bg-[#0E3827]">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-950/50 border border-emerald-300/30 shrink-0">
+          <svg class="w-5 h-5 text-slate-950 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M12 8v8"/>
+            <path d="M8 12h8"/>
+          </svg>
+        </div>
+        <div class="flex flex-col min-w-0">
+          <h1 id="headerMainTitle" class="text-xs font-black uppercase tracking-wider text-white leading-none truncate">PharmaCare<span class="text-emerald-400">.PK</span></h1>
+          <span class="text-[9px] font-semibold text-emerald-300/80 tracking-tight leading-none mt-1">POS & PHARMACY SYSTEM</span>
+        </div>
+      </div>
+
+      <!-- 30 Modules Sidebar Navigation -->
+      <nav id="sidebarNav" class="flex-1 overflow-y-auto py-1">
+        <!-- Rendered dynamically by app.js -->
+      </nav>
+
+      <!-- Sync Status & User Profile Footer -->
+      <div class="p-2.5 border-t border-emerald-800/50 bg-[#062319]">
+        <div class="flex items-center justify-between text-[10px] text-slate-400 mb-1.5">
+          <span id="sidebarUserName" class="font-semibold text-slate-300 truncate">Admin Pharmacist</span>
+          <div id="networkSyncBadge">
+            <span onclick="window.app && window.app.triggerOnlineSync()" class="text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 font-mono font-bold text-[10px]" title="100% Complete Offline Local Database (IndexedDB)">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Offline DB Active
+            </span>
+          </div>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden flex items-center">
+          <div class="bg-emerald-500 w-full h-full"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col min-w-0 bg-[#062319] overflow-hidden">
+
+      <!-- TOP HEADER (High-Density Responsive Multi-Tier Header Bar) -->
+      <header class="min-h-[52px] bg-[#0E3827] border-b border-emerald-800/50 flex flex-wrap items-center justify-between px-3 py-1.5 shrink-0 z-10 gap-2">
+        
+        <!-- Left: Pharmacy Identity & Credentials -->
+        <div class="flex items-center gap-2.5 flex-wrap min-w-0">
+          <!-- Pharmacy Custom Logo Box (Click to Upload / Change Logo) -->
+          <div onclick="window.app && window.app.showPharmacyLogoModal ? window.app.showPharmacyLogoModal() : (window.showPharmacyLogoModal && window.showPharmacyLogoModal())" 
+            title="Click to Upload / Change Custom Pharmacy Logo Picture (Printed on 80mm Thermal Receipts)" 
+            class="relative group cursor-pointer shrink-0">
+            <div id="headerLogoContainer" class="w-8 h-8 rounded-lg bg-slate-900 border border-emerald-400/40 overflow-hidden flex items-center justify-center shadow-md group-hover:border-emerald-300 transition-all">
+              <img id="headerPharmacyLogoImg" src="" alt="Logo" class="w-full h-full object-contain hidden" />
+              <div id="headerPharmacyLogoFallback" class="text-emerald-400 font-bold text-xs flex items-center justify-center">
+                <i data-lucide="cross" class="w-4 h-4 text-emerald-300"></i>
+              </div>
+            </div>
+            <div class="absolute -bottom-1 -right-1 bg-emerald-500 text-slate-950 rounded-full p-0.5 shadow group-hover:scale-110 transition-transform">
+              <i data-lucide="camera" class="w-2.5 h-2.5"></i>
+            </div>
+          </div>
+
+          <!-- Pharmacy Store Name & Module Title -->
+          <div class="flex flex-col min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span id="headerPharmacyName" class="text-xs font-black text-white uppercase tracking-tight truncate max-w-[180px] sm:max-w-[240px]">
+                My Pharmacy Store
+              </span>
+              <span id="headerPharmacyLocationBadge" class="hidden xl:inline-flex items-center gap-0.5 text-[10px] text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.2 rounded font-sans truncate max-w-[130px]" title="Store Location">
+                <i data-lucide="map-pin" class="w-2.5 h-2.5 text-emerald-400 shrink-0"></i>
+                <span id="headerPharmacyLocationText" class="truncate">Main Market</span>
+              </span>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] text-slate-300">
+              <span id="moduleTitle" class="text-emerald-400 font-bold uppercase tracking-tight">Dashboard</span>
+              <span class="text-slate-500">•</span>
+              <span id="headerDrapLicBadge" class="hidden sm:inline font-mono text-[9px] text-slate-400">DRAP: DRAP-88712</span>
+            </div>
+          </div>
+
+          <!-- License Status Badge -->
+          <div id="headerLicenseBadgeWrapper" class="hidden md:flex items-center">
+            <span id="headerLicenseBadge" class="text-[10px] text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded font-mono flex items-center gap-1">
+              <span>Active (Commercial)</span>
+            </span>
+          </div>
+
+          <!-- Active Staff Role Badge -->
+          <div class="hidden lg:flex items-center gap-1 text-[10px]">
+            <span id="headerUserBadge" class="text-[10px] text-emerald-300 bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded font-bold flex items-center gap-1 shadow-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Admin
+            </span>
+          </div>
+        </div>
+
+        <!-- Right: Grouped Command Toolbar -->
+        <div class="flex items-center gap-1.5 flex-wrap">
+          
+          <!-- Primary Action: POS (F1) -->
+          <button onclick="window.app.switchModule('pos')" class="px-2.5 py-1 text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-lg flex items-center gap-1.5 shadow-md transition-all cursor-pointer">
+            <i data-lucide="shopping-cart" class="w-3.5 h-3.5 text-slate-950"></i>
+            <span>POS (F1)</span>
+          </button>
+
+          <!-- Voice Search Button (Alt+V) -->
+          <button onclick="window.app.startVoiceCommandSearch('stockSearchInput')" title="Voice Search Inventory (Alt+V) - Speak medication name or SKU" class="px-2 py-1 text-[11px] font-bold bg-emerald-900/60 hover:bg-emerald-800/80 text-emerald-200 border border-emerald-500/40 rounded-lg flex items-center gap-1 shadow-sm transition-all cursor-pointer">
+            <i data-lucide="mic" class="w-3.5 h-3.5 text-emerald-300 animate-pulse"></i>
+            <span class="hidden sm:inline">Voice</span>
+          </button>
+
+          <!-- Owner Admin Panel (F9) -->
+          <button onclick="if(window.showAdminLicensePanel){window.showAdminLicensePanel();}else if(window.app&&window.app.showAdminLicensePanel){window.app.showAdminLicensePanel();}else{window.dispatchEvent(new CustomEvent('pharma_open_admin_panel'));}" title="Owner Admin Panel — Key Generator & Reseller Console (F9)" class="px-2 py-1 text-[11px] font-extrabold bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 border border-amber-300 rounded-lg flex items-center gap-1 shadow-md transition-all cursor-pointer">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-slate-950"></i>
+            <span>🔑 Admin</span>
+          </button>
+
+          <!-- Multi-PC Fleet Updates (F10) -->
+          <button onclick="if(window.openVersionUpdates){window.openVersionUpdates();}else if(window.app&&window.app.openVersionUpdates){window.app.openVersionUpdates();}else{window.app?.showExeInstallerModal();}" title="Software Version Updates & Multi-PC Fleet Sync (F10)" class="px-2 py-1 text-[11px] font-bold bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 rounded-lg flex items-center gap-1 shadow-sm transition-all cursor-pointer">
+            <i data-lucide="radio" class="w-3.5 h-3.5 text-cyan-400 animate-pulse"></i>
+            <span class="hidden md:inline">Fleet</span>
+          </button>
+
+          <!-- Install Desktop App (PWA / Windows EXE) -->
+          <button onclick="window.triggerPWAInstall ? window.triggerPWAInstall() : window.app.showExeInstallerModal()" title="Install PharmaCare PK as Native Desktop App (Chrome PWA / Windows EXE)" class="px-2 py-1 text-[11px] font-black bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-300 rounded-lg flex items-center gap-1 shadow-sm transition-all cursor-pointer">
+            <i data-lucide="download-cloud" class="w-3.5 h-3.5 text-slate-950"></i>
+            <span class="hidden sm:inline">📲 Install App</span>
+          </button>
+          <button id="pwaInstallBtn" onclick="window.triggerPWAInstall()" class="hidden"></button>
+
+          <!-- Offline Tools Dropdown Menu -->
+          <div class="relative group">
+            <button class="px-2 py-1 text-[11px] font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg flex items-center gap-1 shadow-sm transition-all cursor-pointer" title="Offline Operations, Backups, Shortcuts & Tools">
+              <i data-lucide="database" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span class="hidden xl:inline">Offline Tools</span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div class="absolute right-0 top-full mt-1 w-52 bg-[#0E3827] border border-emerald-500/40 rounded-xl p-1.5 shadow-2xl space-y-1 hidden group-hover:block group-focus-within:block z-50 text-xs">
+              <button onclick="window.app.exportDatabaseBackup()" class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-800/60 rounded-lg text-emerald-300 flex items-center gap-2 transition-colors cursor-pointer">
+                <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>1-Click Offline Backup</span>
+              </button>
+              <button onclick="window.app.showOfflineSetupGuideModal()" class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-800/60 rounded-lg text-slate-200 flex items-center gap-2 transition-colors cursor-pointer">
+                <i data-lucide="book-open" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span>Offline Setup Guide</span>
+              </button>
+              <button onclick="window.app.showKeyboardShortcutsModal()" class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-800/60 rounded-lg text-amber-300 flex items-center gap-2 transition-colors cursor-pointer">
+                <i data-lucide="keyboard" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span>Shortcuts (Alt+K / F4)</span>
+              </button>
+              <button onclick="window.app.showPharmacyLogoModal()" class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-800/60 rounded-lg text-teal-300 flex items-center gap-2 transition-colors cursor-pointer">
+                <i data-lucide="image" class="w-3.5 h-3.5 text-teal-400"></i>
+                <span>Upload Pharmacy Logo</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Color Theme Switcher Dropdown (6 Rich Color Schemes) -->
+          <div class="relative group">
+            <button class="px-2 py-1 text-[11px] font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg flex items-center gap-1 shadow-sm transition-all cursor-pointer" title="Switch Software Color Theme">
+              <i data-lucide="palette" class="w-3.5 h-3.5 text-cyan-400"></i>
+              <span class="hidden 2xl:inline">Theme</span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400"></i>
+            </button>
+            <div class="absolute right-0 top-full mt-1 w-56 bg-slate-900 border border-slate-700/80 rounded-xl p-1.5 shadow-2xl space-y-1 hidden group-hover:block group-focus-within:block z-50 text-xs">
+              <div class="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-tight border-b border-slate-800">
+                Software Color Schemes
+              </div>
+              <button onclick="window.app.setSoftwareTheme('emerald-green')" class="w-full text-left px-2.5 py-1.5 hover:bg-slate-800 rounded-lg text-emerald-400 flex items-center justify-between transition-colors cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-emerald-500 border border-emerald-300"></span>
+                  <span>🌿 Emerald Green</span>
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Default</span>
+              </button>
+              <button onclick="window.app.setSoftwareTheme('online-black')" class="w-full text-left px-2.5 py-1.5 hover:bg-slate-800 rounded-lg text-slate-200 flex items-center justify-between transition-colors cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-slate-950 border border-slate-500"></span>
+                  <span>🌑 Midnight Obsidian</span>
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Black</span>
+              </button>
+              <button onclick="window.app.setSoftwareTheme('offline-blue')" class="w-full text-left px-2.5 py-1.5 hover:bg-slate-800 rounded-lg text-blue-300 flex items-center justify-between transition-colors cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-blue-600 border border-blue-400"></span>
+                  <span>🌊 Sapphire Navy</span>
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Blue</span>
+              </button>
+              <button onclick="window.app.setSoftwareTheme('medical-cyan')" class="w-full text-left px-2.5 py-1.5 hover:bg-slate-800 rounded-lg text-cyan-300 flex items-center justify-between transition-colors cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-cyan-500 border border-cyan-300"></span>
+                  <span>💎 Medical Cyan</span>
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Teal</span>
+              </button>
+              <button onclick="window.app.setSoftwareTheme('royal-purple')" class="w-full text-left px-2.5 py-1.5 hover:bg-slate-800 rounded-lg text-purple-300 flex items-center justify-between transition-colors cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-purple-600 border border-purple-400"></span>
+                  <span>👑 Royal Purple</span>
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Violet</span>
+              </button>
+              <button onclick="window.app.setSoftwareTheme('amber-gold')" class="w-full text-left px-2.5 py-1.5 hover:bg-slate-800 rounded-lg text-amber-300 flex items-center justify-between transition-colors cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-amber-500 border border-amber-300"></span>
+                  <span>☀️ Amber Sunset</span>
+                </span>
+                <span class="text-[9px] text-slate-400 font-mono">Amber</span>
+              </button>
+              <button onclick="window.app.setSoftwareTheme('royal-gold')" class="w-full text-left px-2.5 py-1.5 hover:bg-amber-950/60 rounded-lg text-amber-300 flex items-center justify-between transition-colors cursor-pointer border border-amber-500/30 bg-amber-950/30">
+                <span class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 border border-amber-200 shadow-sm animate-pulse"></span>
+                  <span class="font-extrabold text-amber-200">👑 Imperial 3D Gold</span>
+                </span>
+                <span class="text-[9px] text-amber-400 font-mono font-bold">3D Gold</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Laptop Screen Density Presets (100% | 90% | 80%) -->
+          <div class="hidden sm:flex items-center bg-slate-900 border border-slate-700/80 rounded-lg p-0.5 text-[11px] shadow-sm">
+            <span class="text-slate-400 pl-1.5 pr-1 flex items-center gap-1 font-semibold text-[10px]" title="Screen Fit Scaling">
+              <i data-lucide="laptop" class="w-3 h-3 text-cyan-400"></i>
+              <span class="hidden 2xl:inline">Fit:</span>
+            </span>
+            <button onclick="window.setSoftwareUiScale ? window.setSoftwareUiScale(100) : (document.documentElement.style.zoom='100%')" class="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer" title="100% Standard Display">100%</button>
+            <button onclick="window.setSoftwareUiScale ? window.setSoftwareUiScale(90) : (document.documentElement.style.zoom='90%')" class="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/40 cursor-pointer" title="90% Recommended for Laptops (1366x768 / 1080p)">90%</button>
+            <button onclick="window.setSoftwareUiScale ? window.setSoftwareUiScale(80) : (document.documentElement.style.zoom='80%')" class="px-1.5 py-0.5 rounded font-mono font-bold text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer" title="80% Compact Screen Fit (768p / Small Screen)">80%</button>
+          </div>
+
+          <!-- Language Toggle Button Group -->
+          <div class="flex bg-slate-800/80 border border-slate-700/60 rounded p-0.5">
+            <button onclick="window.i18n.setLanguage('en'); location.reload();" 
+              class="px-1.5 py-0.5 text-[10px] font-bold transition-colors text-white bg-slate-700 rounded">ENG</button>
+            <button onclick="window.i18n.setLanguage('ur'); location.reload();" 
+              class="px-1.5 py-0.5 text-[10px] font-bold transition-colors text-slate-400 hover:text-white">اردو</button>
+          </div>
+
+          <!-- Alert Bell Button -->
+          <button onclick="window.app.switchModule('expiryAlerts')" class="relative p-1.5 text-slate-400 hover:text-white bg-slate-800/80 border border-slate-700/60 rounded-lg cursor-pointer" title="Expiry & Inventory Alerts">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            <span id="alertBadge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-mono font-bold rounded-full flex items-center justify-center">0</span>
+          </button>
+
+          <!-- Logout Button -->
+          <button onclick="window.auth.logout(); location.reload();" title="Logout from System" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-lg transition-colors cursor-pointer">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN DYNAMIC CONTENT CONTAINER -->
+      <main id="mainContent" class="flex-1 p-3 overflow-y-auto bg-[#062319] flex flex-col">
+        <!-- Module content injected dynamically by app.js -->
+      </main>
+
+      <!-- FOOTER STRIP / UTILITY -->
+      <footer class="h-8 bg-[#041810] border-t border-emerald-800/50 px-4 flex items-center justify-between text-[10px] text-slate-400 shrink-0 z-10">
+        <div class="flex items-center gap-5 truncate">
+          <div>Logged in: <span id="footerUserLabel" class="text-slate-200 font-bold uppercase">ADMIN (PHARMACIST)</span></div>
+          <div class="hidden sm:block">System Time: <span id="footerSystemTime" class="text-slate-300 font-mono">--:--</span></div>
+          <div class="hidden md:block">DRAP License: <span id="footerDrapLic" class="text-slate-300 font-mono">LHR-88712-DRP</span></div>
+        </div>
+        <div class="flex items-center gap-3 shrink-0">
+          <div id="footerNetworkBadge">
+            <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded flex items-center gap-1 text-[9px] font-mono font-bold" title="POS Software by Salman Said">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              ⚡ Software Provider Salman Said
+            </span>
+          </div>
+          <span class="hidden lg:inline-flex items-center gap-1 text-[9px] text-rose-400 font-bold tracking-wider uppercase">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+            DRAP CONTROL DRUG REGISTER ACTIVE
+          </span>
+          <div class="flex gap-1.5">
+            <span class="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[9px] border border-blue-500/20 font-mono">F1: POS</span>
+            <span class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-[9px] border border-emerald-500/20 font-mono">F2: NEW SALE</span>
+            <span class="px-1.5 py-0.5 bg-slate-700/50 text-slate-400 rounded text-[9px] border border-slate-600/20 font-mono">CTRL+S: SAVE</span>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+
+  <!-- Print Modal Container -->
+  <div id="receiptPrintModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <!-- Receipt content rendered dynamically -->
+  </div>
+
+  <!-- Application Modules JS Scripts -->
+  <script src="/js/db.js"></script>
+  <script src="/js/i18n.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/license.js"></script>
+  <script src="/js/easypaisa-offline.js"></script>
+  <script src="/js/keybindings.js"></script>
+  <script src="/js/payments.js"></script>
+  <script src="/js/alerts.js"></script>
+  <script src="/js/reports.js"></script>
+  <script src="/js/app.js"></script>
+  <script type="module" src="/src/main.tsx"></script>
+  <script>
+    // Live Footer Time
+    function updateFooterTime() {
+      const el = document.getElementById('footerSystemTime');
+      if (el) {
+        const now = new Date();
+        el.innerText = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    setInterval(updateFooterTime, 1000);
+    updateFooterTime();
+
+    // Online / Offline Status Handler & Badge Updater
+    function updateNetworkStatus() {
+      const isOnline = navigator.onLine;
+      const sidebarBadge = document.getElementById('networkSyncBadge');
+      const footerBadge = document.getElementById('footerNetworkBadge');
+
+      if (sidebarBadge) {
+        sidebarBadge.innerHTML = `
+          <span onclick="window.app && window.app.triggerOnlineSync()" class="text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 font-mono font-bold text-[10px]" title="POS System Storage">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            System Active
+          </span>
+        `;
+      }
+      if (footerBadge) {
+        footerBadge.innerHTML = `
+          <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded flex items-center gap-1 text-[9px] font-mono font-bold" title="POS Software by Salman Said">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            ⚡ Software Provider Salman Said
+          </span>
+        `;
+      }
+    }
+
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
+    window.addEventListener('load', updateNetworkStatus);
+
+    // Service Worker Registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            console.log('✅ ServiceWorker registered with scope:', reg.scope);
+          })
+          .catch((err) => {
+            console.warn('⚠️ ServiceWorker registration failed:', err);
+          });
+      });
+    }
+
+    // PWA Install Prompt Handler
+    let deferredPWAInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPWAInstallPrompt = e;
+      const btn = document.getElementById('pwaInstallBtn');
+      if (btn) btn.classList.remove('hidden');
+    });
+
+    window.triggerPWAInstall = async () => {
+      if (deferredPWAInstallPrompt) {
+        try {
+          deferredPWAInstallPrompt.prompt();
+          const { outcome } = await deferredPWAInstallPrompt.userChoice;
+          console.log(`User PWA Install Choice: ${outcome}`);
+          deferredPWAInstallPrompt = null;
+          return;
+        } catch (err) {
+          console.warn('PWA Install Prompt error:', err);
+        }
+      }
+      if (window.app && typeof window.app.showExeInstallerModal === 'function') {
+        window.app.showExeInstallerModal();
+      } else {
+        alert('📱 To install on Google Chrome: Click Chrome menu (⋮) -> Install PharmaCare PK or Save Page As.');
+      }
+    };
+  </script>
+</body>
+</html>
+
